@@ -7,6 +7,7 @@ from aiogram import Bot, Dispatcher, F, Router
 from aiogram.types import Message, Audio
 from aiogram.filters.command import CommandStart
 import openai
+from aiogram import html
 
 from text import greet_first, greet_second
 
@@ -26,29 +27,34 @@ async def audio_to_text(file_path: str) -> str:
     """
     with open(file_path, 'rb') as audio_file:
         transcript = await openai.Audio.atranscribe(
-	        'whisper-1', audio_file
+	        model='whisper-1', file=audio_file
 	    )
-    return transcript['text']
+        # os.remove(file_path)
+    print(transcript)
+    return transcript
 
 
 async def save_audio_as_mp3(bot: Bot, audio: Audio) -> str:
     """Downloads audio and saves in mp3 format."""
     audio_file_info = await bot.get_file(audio.file_id)
-    await bot.download_file(audio_file_info.file_path,
-                            f'audio_files/audio-{audio.file_unique_id}.mp3')
+    await bot.download_file(
+        audio_file_info.file_path,
+        f'audio_files/audio-{audio.file_unique_id}.mp3')
     audio_mp3_path = f'audio_files/audio-{audio.file_unique_id}.mp3'
     return audio_mp3_path
 
 
 @router.message(CommandStart())
-async def greet_user(message: Message, bot: Bot) -> None:
+async def greet_user(message: Message) -> None:
     """Greets the user with messages."""
-    name = message.from_user.username
-    await message.answer(greet_first.format(name=name))
+    name = message.from_user.full_name
+    await message.answer(
+        greet_first.format(name=html.bold(html.quote(name)))
+    )
     await message.answer(greet_second)
 
 
-@router.message(F.content_type == 'audio')
+@router.message(F.content_type == 'AUDIO')
 async def process_voice_message(message: Message, bot: Bot) -> None:
     """Принимает все голосовые сообщения и транскрибирует их в текст."""
     audio_path = await save_audio_as_mp3(bot, message.audio)
@@ -59,7 +65,7 @@ async def process_voice_message(message: Message, bot: Bot) -> None:
 
 
 async def main() -> None:
-    bot: Bot = Bot(token=BOT_TOKEN)
+    bot: Bot = Bot(token=BOT_TOKEN, parse_mode='HTML')
     dp: Dispatcher = Dispatcher()
     dp.include_router(router)
     await dp.start_polling(bot)
